@@ -1,0 +1,115 @@
+  public void drawRealTraj(final String prefix, final String point, final int level, final String[] colorStr,
+                             final double radius, final String[] ids, final List<Tile> tiles, final int all,
+                             final String mode)
+            throws DbRequestException {
+
+        final double length = toolUtil.lengthPerTile(level);
+        long start = System.currentTimeMillis();
+        ExecutorService executor = Executors.newFixedThreadPool(ids.length);
+
+        Future[] futures = new Future[ids.length];
+        for (int i = 0; i < ids.length; i++) {
+            final int index = i;
+
+            futures[i] = executor.submit(new Callable<Boolean>() {
+
+                @Override
+                public Boolean call() throws DbRequestException {
+                    long startCheck = System.currentTimeMillis();
+                    List<Tile> localTiles = null;
+                    String type = Const.MapConstants.trajPre + colorStr[index] + Const.MapConstants.trajSplit
+                            + ids[index] + Const.MapConstants.trajSplit + mode;
+                    Color color = toolUtil.covertColor(colorStr[index]);
+
+                    List<Tile> tilesNot = new ArrayList<Tile>();
+                    boolean flag = true;
+                    if (tiles != null && tiles.size() > 0) {
+                        for (Tile tile : tiles) {
+
+                            String key = String.format("%s_%s_%s_%s", type, tile.getZoom(), tile.getTileX(),
+                                    tile.getY());
+
+                            //if (MapServiceImpl.trajEmpty != null && !MapServiceImpl.trajEmpty.isEmpty()
+                            //&& MapServiceImpl.trajEmpty.containsKey(key)) {
+                            if (CacheManager.containsKey(key)) {
+                                flag = false;
+                                //logger.info("key: {}", key);
+                                //logger.info("the key exists!");
+                                continue;
+                            }
+                            if (tile.checkTileExists(toolUtil.imagePath, prefix, type)) {
+                                flag = false;
+                                //logger.error("this traj tile exists....  continue!!!");
+                                continue;
+                            } else {
+                                tilesNot.add(tile);
+                            }
+                        }
+                        if (tilesNot.size() > 0) {
+                            localTiles = tilesNot;
+                        } else if (flag) {
+                            localTiles = tiles;
+                        }
+                    }
+                    long check = System.currentTimeMillis() - startCheck;
+                    logger.debug(" check  traj : {}", check);
+                    if (localTiles != null && localTiles.size() > 0) {
+                        long startnet = System.currentTimeMillis();
+                        String url = dbHost
+                                + String.format(Const.RealGenUrl.orginal_trajectory, point, (radius + length * 2),
+                                Const.MapConstants.Traj_threadhold, ids[index], mode, all);
+                        logger.info("url : " + url);
+                        List<Line> lines = parseGpsDataByDb.getTrajectory(url);
+                        long net = System.currentTimeMillis() - startnet;
+                        logger.error(" net traj : {}", net);
+                        if (lines == null || lines.size() <= 0) {
+                            long startcc = System.currentTimeMillis();
+
+                            for (Tile tile : localTiles) {
+                                String key = String.format("%s_%s_%s_%s", type, tile.getZoom(),
+                                        tile.getTileX(), tile.getY());
+                                //logger.error("traj no need draw...");
+                                CacheManager.addTrij(key, 0);
+                                //MapServiceImpl.trajEmpty.put(key, 0);
+                            }
+
+                            long ccc = System.currentTimeMillis() - startcc;
+                            logger.debug("cache traj : {}", ccc);
+                            return true;
+                        }
+                        logger.debug("traj size: " + lines.size());
+                        long startd = System.currentTimeMillis();
+                        tileManager.createTileReal(prefix, false, type, lines, level, color, localTiles);
+                        long draw = System.currentTimeMillis() - startd;
+                        logger.debug("draw traj : {}", draw);
+                    }
+
+                    return true;
+                }
+            });
+        }
+        executor.shutdown();
+
+        for (Future future : futures) {
+            try {
+                future.get();
+            } catch (InterruptedException e) {
+                logger.error(e.toString());
+            } catch (Exception e) {
+                logger.error("error ", e);
+                Throwable cause = e.getCause();
+                if (cause instanceof DbRequestException) {
+                    int code = ((DbRequestException) cause).getCode();
+                    String message = cause.getMessage();
+                    throw new DbRequestException(code, message);
+                } else {
+                    int code = 500;
+                    String message = "Service error";
+                    throw new DbRequestException(code, message);
+                }
+            }
+        }
+
+        long pus = System.currentTimeMillis() - start;
+        logger.info("time use traj : {}", pus);
+    }
