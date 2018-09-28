@@ -1,4 +1,37 @@
-  public void drawRealTraj(final String prefix, final String point, final int level, final String[] colorStr,
+
+import java.awt.Color;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Component;
+import org.springframework.util.CollectionUtils;
+
+import com.ygomi.roaddb.visual2dimage.constant.CacheManager;
+import com.ygomi.roaddb.visual2dimage.constant.Const;
+import com.ygomi.roaddb.visual2dimage.constant.TileManager;
+import com.ygomi.roaddb.visual2dimage.exception.DbRequestException;
+import com.ygomi.roaddb.visual2dimage.model.CoordAndPoint;
+import com.ygomi.roaddb.visual2dimage.model.DestRange;
+import com.ygomi.roaddb.visual2dimage.model.GpsType;
+import com.ygomi.roaddb.visual2dimage.model.Line;
+import com.ygomi.roaddb.visual2dimage.model.Segment;
+import com.ygomi.roaddb.visual2dimage.model.Tile;
+import com.ygomi.roaddb.visual2dimage.restful.MapRestController;
+import com.ygomi.roaddb.visual2dimage.util.ToolUtil;
+
+
+public void drawRealTraj(final String prefix, final String point, final int level, final String[] colorStr,
                              final double radius, final String[] ids, final List<Tile> tiles, final int all,
                              final String mode)
             throws DbRequestException {
